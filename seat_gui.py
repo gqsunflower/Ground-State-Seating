@@ -14,11 +14,14 @@ seat_optimizer.py の計算エンジンをそのまま使うGUI。
   JSONファイルに保存/復元できる(次回起動時に続きから再開できる)。
   保存先はデフォルトで saved_data/ フォルダ。実名・個人の好き嫌いを含む
   データなので、このフォルダは .gitignore で除外しGitHubには上げない
+- 「結果をPDFに出力」ボタンで、直近の実行結果(最適配置・座席配置図)をPDFとして
+  保存できる(要 reportlab。日本語のメンバー名を正しく表示するために使用)
 
 反発の重み・許容幅・対面回避設定などの細かいパラメータは、seat_optimizer.py
 冒頭の CONFIG セクションの値がそのまま使われる(変えたい場合はそちらを編集する)。
 
 ■ 起動方法
+    pip install reportlab   (PDF出力機能に必要。未インストールでも他の機能は使える)
     python seat_gui.py
 """
 
@@ -276,6 +279,12 @@ class SeatOptimizerGUI:
         self.seat_coords = {}
         self.mode = tk.StringVar(value=so.MODE)
 
+        # 直近の「最適化を実行」結果(PDF出力用に保持しておく)
+        self.last_people = None
+        self.last_assign = None
+        self.last_seat_coords = None
+        self.last_summary = ""
+
         setup_frame = ttk.LabelFrame(root, text="設定")
         setup_frame.pack(fill="x", padx=10, pady=10)
 
@@ -325,7 +334,10 @@ class SeatOptimizerGUI:
                   foreground="gray").grid(row=len(MODE_INFO), column=0, columnspan=2,
                                            padx=10, pady=(0, 10), sticky="w")
 
-        ttk.Button(root, text="最適化を実行", command=self.run).pack(pady=5)
+        run_frame = ttk.Frame(root)
+        run_frame.pack(pady=5)
+        ttk.Button(run_frame, text="最適化を実行", command=self.run).pack(side="left", padx=5)
+        ttk.Button(run_frame, text="結果をPDFに出力...", command=self.export_pdf).pack(side="left", padx=5)
 
         self.status_label = ttk.Label(root, text="", foreground="gray")
         self.status_label.pack(padx=10, pady=(0, 5), anchor="w")
@@ -443,6 +455,13 @@ class SeatOptimizerGUI:
         summary = " ｜ ".join(line for line in report.splitlines()[1:4])
         self.status_label.config(text=summary)
 
+        # PDF出力用に、この時点のデータをスナップショットとして保持しておく
+        # (後でメンバー編集などをしても、PDFには実行時点の結果が正しく出るように)
+        self.last_people = list(self.people)
+        self.last_assign = best_assign
+        self.last_seat_coords = dict(self.seat_coords)
+        self.last_summary = summary
+
         self.draw_result_chart(best_assign)
 
     def draw_result_chart(self, best_assign):
@@ -463,6 +482,105 @@ class SeatOptimizerGUI:
             canvas.create_text(cx, cy + 10, text=label, font=("", 7), fill="gray")
 
         canvas.configure(scrollregion=canvas.bbox("all"))
+
+    def export_pdf(self):
+        if not self.last_assign:
+            messagebox.showerror("エラー", "先に「最適化を実行」で結果を出してください。")
+            return
+
+        try:
+            from reportlab.lib.pagesizes import A4
+            from reportlab.lib.units import mm
+            from reportlab.pdfbase import pdfmetrics
+            from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+            from reportlab.pdfgen import canvas as pdfcanvas
+        except ImportError:
+            messagebox.showerror(
+                "エラー",
+                "PDF出力には reportlab が必要です。\n"
+                "コマンドプロンプトで次を実行してからもう一度お試しください:\n\n"
+                "pip install reportlab")
+            return
+
+        path = filedialog.asksaveasfilename(
+            title="PDFの保存先を選択", defaultextension=".pdf",
+            filetypes=[("PDFファイル", "*.pdf")])
+        if not path:
+            return
+
+        try:
+            self._write_result_pdf(path, A4, mm, pdfmetrics, UnicodeCIDFont, pdfcanvas)
+        except Exception as e:
+            messagebox.showerror("エラー", f"PDF出力に失敗しました: {e}")
+            return
+        messagebox.showinfo("出力完了", f"PDFを出力しました:\n{path}")
+
+    def _write_result_pdf(self, path, A4, mm, pdfmetrics, UnicodeCIDFont, pdfcanvas):
+        font_name = 'HeiseiKakuGo-W5'  # reportlab同梱の日本語CIDフォント(追加のフォントファイル不要)
+        if font_name not in pdfmetrics.getRegisteredFontNames():
+            pdfmetrics.registerFont(UnicodeCIDFont(font_name))
+
+        page_w, page_h = A4
+        margin = 18 * mm
+        c = pdfcanvas.Canvas(path, pagesize=A4)
+
+        y = page_h - margin
+        c.setFont(font_name, 16)
+        c.drawString(margin, y, "座席配置最適化 結果")
+        y -= 9 * mm
+
+        c.setFont(font_name, 9)
+        c.drawString(margin, y, self.last_summary)
+        y -= 8 * mm
+
+        c.setFont(font_name, 11)
+        c.drawString(margin, y, "最適配置")
+        y -= 6 * mm
+
+        c.setFont(font_name, 9)
+        for p in self.last_people:
+            c.drawString(margin + 4 * mm, y, f"{p} → {self.last_assign[p]}")
+            y -= 5 * mm
+            if y < margin + 70 * mm:
+                c.showPage()
+                c.setFont(font_name, 9)
+                y = page_h - margin
+
+        y -= 6 * mm
+        c.setFont(font_name, 11)
+        c.drawString(margin, y, "座席配置図")
+        y -= 4 * mm
+
+        self._draw_seat_chart_on_pdf(c, font_name, margin, page_w, page_h, y)
+        c.save()
+
+    def _draw_seat_chart_on_pdf(self, c, font_name, margin, page_w, page_h, chart_top):
+        from reportlab.lib.units import mm
+
+        seat_coords = self.last_seat_coords
+        seat_to_person = {v: k for k, v in self.last_assign.items()}
+        box_w, box_h = 26 * mm, 16 * mm
+        chart_bottom = margin
+        chart_area_w = page_w - 2 * margin
+        chart_area_h = max(chart_top - chart_bottom, box_h)
+
+        xs = [p[0] for p in seat_coords.values()]
+        ys = [p[1] for p in seat_coords.values()]
+        span_x = max(max(xs) - min(xs), 1.0)
+        span_y = max(max(ys) - min(ys), 1.0)
+        scale = min((chart_area_w - box_w) / span_x, (chart_area_h - box_h) / span_y)
+        scale = min(scale, 1.0)  # px座標をそのまま拡大しすぎないようにする
+
+        for label, (x, yy) in seat_coords.items():
+            cx = margin + box_w / 2 + (x - min(xs)) * scale
+            cy = chart_top - box_h / 2 - (yy - min(ys)) * scale
+            c.setFillColorRGB(0.84, 0.96, 0.84)
+            c.roundRect(cx - box_w / 2, cy - box_h / 2, box_w, box_h, 3, fill=1, stroke=1)
+            c.setFillColorRGB(0, 0, 0)
+            c.setFont(font_name, 10)
+            c.drawCentredString(cx, cy + 1.5 * mm, seat_to_person.get(label, "?"))
+            c.setFont(font_name, 7)
+            c.drawCentredString(cx, cy - 4.5 * mm, label)
 
 
 if __name__ == '__main__':
