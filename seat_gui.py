@@ -9,7 +9,7 @@ seat_optimizer.py の計算エンジンをそのまま使うGUI。
 - 「② 座席を設定」ボタン → 別ウィンドウで、メンバー数と同じ数の□(座席)が
   用意され、ドラッグして自由に配置できる(□同士の距離がそのまま座席間距離になる)
 - モード(net / split / lexicographic)を選んで「最適化を実行」を押すと、
-  テキストと座席配置図(結果)の両方で表示される
+  座席配置図(結果)とスコアの概要が表示される
 - 「保存」「読込」ボタンで、メンバー・好き嫌いスコア・座席配置・モードを
   JSONファイルに保存/復元できる(次回起動時に続きから再開できる)。
   保存先はデフォルトで saved_data/ フォルダ。実名・個人の好き嫌いを含む
@@ -26,7 +26,7 @@ import json
 import math
 import os
 import tkinter as tk
-from tkinter import ttk, messagebox, scrolledtext, filedialog
+from tkinter import ttk, messagebox, filedialog
 
 import seat_optimizer as so
 
@@ -296,34 +296,52 @@ class SeatOptimizerGUI:
 
         mode_frame = ttk.LabelFrame(root, text="計算モード")
         mode_frame.pack(fill="x", padx=10, pady=(0, 10))
-        for i, (val, label) in enumerate([
-            ('net', 'net（単純合算）'),
-            ('split', 'split（引力・反発を分離）'),
-            ('lexicographic', 'lexicographic（反発回避を優先）'),
-        ]):
-            ttk.Radiobutton(mode_frame, text=label, variable=self.mode, value=val).grid(
-                row=0, column=i, padx=10, pady=5, sticky="w")
 
-        mode_desc = (
-            "net：好き嫌いを単純に合算して計算する、最初に作られたシンプルなモデル\n"
-            "split：「好き」と「嫌い」を別の力として扱う。片思いの「嫌い」が相殺されて消えないよう改良されたモデル\n"
-            "lexicographic：「嫌い同士を離す」ことを最優先にしたうえで、その次に「好き同士を近づける」ことを狙うモデル\n"
-            "（3つとも独立した発想のモデルですが、多くの場合ほぼ同じ結論に収束します）"
-        )
-        ttk.Label(mode_frame, text=mode_desc, foreground="gray", justify="left",
-                  wraplength=700).grid(row=1, column=0, columnspan=3, padx=10, pady=(0, 10), sticky="w")
+        MODE_INFO = [
+            ('net', 'net（単純合算）',
+             '好き嫌いを単純に合算して計算する、最初に作られたシンプルなモデル'),
+            ('split', 'split（引力・反発を分離）',
+             '「好き」と「嫌い」を別の力として扱う。片思いの「嫌い」が相殺されて消えないよう改良されたモデル'),
+            ('lexicographic', 'lexicographic（反発回避を優先）',
+             '「嫌い同士を離す」ことを最優先にしたうえで、その次に「好き同士を近づける」ことを狙うモデル'),
+        ]
+        for i, (val, name, desc) in enumerate(MODE_INFO):
+            radio = ttk.Radiobutton(mode_frame, variable=self.mode, value=val)
+            radio.grid(row=i, column=0, padx=(10, 5), pady=8, sticky="nw")
+
+            text_frame = ttk.Frame(mode_frame)
+            text_frame.grid(row=i, column=1, padx=(0, 10), pady=8, sticky="w")
+            name_label = ttk.Label(text_frame, text=name, font=("", 10, "bold"))
+            name_label.pack(anchor="w")
+            desc_label = ttk.Label(text_frame, text=desc, foreground="gray",
+                                    wraplength=600, justify="left")
+            desc_label.pack(anchor="w")
+
+            # 名前・説明のクリックでもトグルを選択できるようにする
+            for widget in (name_label, desc_label):
+                widget.bind("<Button-1>", lambda e, v=val: self.mode.set(v))
+
+        ttk.Label(mode_frame, text="（3つとも独立した発想のモデルですが、多くの場合ほぼ同じ結論に収束します）",
+                  foreground="gray").grid(row=len(MODE_INFO), column=0, columnspan=2,
+                                           padx=10, pady=(0, 10), sticky="w")
 
         ttk.Button(root, text="最適化を実行", command=self.run).pack(pady=5)
 
-        output_frame = ttk.LabelFrame(root, text="結果(テキスト)")
-        output_frame.pack(fill="both", expand=True, padx=10, pady=(0, 5))
-        self.output = scrolledtext.ScrolledText(output_frame, font=("Consolas", 10), height=10, state="disabled")
-        self.output.pack(fill="both", expand=True, padx=5, pady=5)
+        self.status_label = ttk.Label(root, text="", foreground="gray")
+        self.status_label.pack(padx=10, pady=(0, 5), anchor="w")
 
         chart_frame = ttk.LabelFrame(root, text="結果(座席配置図)")
         chart_frame.pack(fill="both", expand=True, padx=10, pady=(0, 10))
-        self.result_canvas = tk.Canvas(chart_frame, background="white", height=260)
-        self.result_canvas.pack(fill="both", expand=True, padx=5, pady=5)
+        chart_frame.rowconfigure(0, weight=1)
+        chart_frame.columnconfigure(0, weight=1)
+
+        self.result_canvas = tk.Canvas(chart_frame, background="white")
+        result_vscroll = ttk.Scrollbar(chart_frame, orient="vertical", command=self.result_canvas.yview)
+        result_hscroll = ttk.Scrollbar(chart_frame, orient="horizontal", command=self.result_canvas.xview)
+        self.result_canvas.configure(yscrollcommand=result_vscroll.set, xscrollcommand=result_hscroll.set)
+        self.result_canvas.grid(row=0, column=0, sticky="nsew")
+        result_vscroll.grid(row=0, column=1, sticky="ns")
+        result_hscroll.grid(row=1, column=0, sticky="ew")
 
     def open_affinity_editor(self):
         AffinityEditor(self.root, self)
@@ -421,10 +439,9 @@ class SeatOptimizerGUI:
             messagebox.showerror("エラー", f"{type(e).__name__}: {e}")
             return
 
-        self.output.config(state="normal")
-        self.output.delete("1.0", tk.END)
-        self.output.insert(tk.END, report)
-        self.output.config(state="disabled")
+        # report のうち先頭部分(モード・スコア・計算時間)だけをステータス行として表示する
+        summary = " ｜ ".join(line for line in report.splitlines()[1:4])
+        self.status_label.config(text=summary)
 
         self.draw_result_chart(best_assign)
 
@@ -432,30 +449,20 @@ class SeatOptimizerGUI:
         canvas = self.result_canvas
         canvas.delete("all")
         if not self.seat_coords:
+            canvas.configure(scrollregion=(0, 0, 0, 0))
             return
 
         seat_to_person = {v: k for k, v in best_assign.items()}
-        xs = [p[0] for p in self.seat_coords.values()]
-        ys = [p[1] for p in self.seat_coords.values()]
-        min_x, max_x = min(xs), max(xs)
-        min_y, max_y = min(ys), max(ys)
-
-        canvas.update_idletasks()
-        cw = canvas.winfo_width() or 680
-        ch = canvas.winfo_height() or 260
         pad = 50
-        span_x = max(max_x - min_x, 1.0)
-        span_y = max(max_y - min_y, 1.0)
-        scale = min((cw - 2 * pad) / span_x, (ch - 2 * pad) / span_y)
-
         for label, (x, y) in self.seat_coords.items():
-            cx = pad + (x - min_x) * scale
-            cy = pad + (y - min_y) * scale
+            cx, cy = x + pad, y + pad
             canvas.create_rectangle(cx - 30, cy - 20, cx + 30, cy + 20,
                                      fill="#d6f5d6", outline="#2e8b57", width=2)
             person = seat_to_person.get(label, "?")
             canvas.create_text(cx, cy - 8, text=person, font=("", 10, "bold"))
             canvas.create_text(cx, cy + 10, text=label, font=("", 7), fill="gray")
+
+        canvas.configure(scrollregion=canvas.bbox("all"))
 
 
 if __name__ == '__main__':
