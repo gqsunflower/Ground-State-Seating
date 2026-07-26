@@ -1,0 +1,18 @@
+# 実名・個人特定可能な情報など、GitHubにあげるべきでないデータはここに置き、コミット対象から除外する
+data/private/
+*_private.*
+*.local.*
+
+# 認証情報
+.env
+*.pem
+*.key
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# OS
+.DS_Store
+Thumbs.db
