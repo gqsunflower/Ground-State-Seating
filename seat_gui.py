@@ -285,8 +285,13 @@ class SeatOptimizerGUI:
         self.last_seat_coords = None
         self.last_summary = ""
 
-        setup_frame = ttk.LabelFrame(root, text="設定")
-        setup_frame.pack(fill="x", padx=10, pady=10)
+        top_row = ttk.Frame(root)
+        top_row.pack(fill="x", padx=10, pady=10)
+        top_row.columnconfigure(0, weight=1)
+        top_row.columnconfigure(1, weight=1)
+
+        setup_frame = ttk.LabelFrame(top_row, text="設定")
+        setup_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 5))
 
         ttk.Button(setup_frame, text="① メンバーの登録とその相性を設定...", command=self.open_affinity_editor).grid(
             row=0, column=0, padx=10, pady=10, sticky="w")
@@ -298,13 +303,17 @@ class SeatOptimizerGUI:
         self.seat_status = ttk.Label(setup_frame, text="未設定")
         self.seat_status.grid(row=1, column=1, sticky="w")
 
-        io_frame = ttk.LabelFrame(root, text="データの保存・読込(次回に続きから再開できます)")
-        io_frame.pack(fill="x", padx=10, pady=(0, 10))
+        io_frame = ttk.LabelFrame(top_row, text="データの保存・読込(次回に続きから再開できます)")
+        io_frame.grid(row=0, column=1, sticky="nsew", padx=(5, 0))
         ttk.Button(io_frame, text="保存...", command=self.save_data).pack(side="left", padx=10, pady=10)
         ttk.Button(io_frame, text="読込...", command=self.load_data).pack(side="left")
 
-        mode_frame = ttk.LabelFrame(root, text="計算モード")
-        mode_frame.pack(fill="x", padx=10, pady=(0, 10))
+        mode_row = ttk.Frame(root)
+        mode_row.pack(fill="x", padx=10, pady=(0, 10))
+        mode_row.columnconfigure(1, weight=1)
+
+        mode_frame = ttk.LabelFrame(mode_row, text="計算モード")
+        mode_frame.grid(row=0, column=0, sticky="nw")
 
         MODE_INFO = [
             ('net', 'net（単純合算）',
@@ -330,9 +339,8 @@ class SeatOptimizerGUI:
             for widget in (name_label, desc_label):
                 widget.bind("<Button-1>", lambda e, v=val: self.mode.set(v))
 
-        ttk.Label(mode_frame, text="（3つとも独立した発想のモデルですが、多くの場合ほぼ同じ結論に収束します）",
-                  foreground="gray").grid(row=len(MODE_INFO), column=0, columnspan=2,
-                                           padx=10, pady=(0, 10), sticky="w")
+        ttk.Label(mode_row, text="（3つとも独立した発想のモデルですが、\n多くの場合ほぼ同じ結論に収束します）",
+                  foreground="gray", justify="left").grid(row=0, column=1, padx=(10, 0), sticky="nw")
 
         run_frame = ttk.Frame(root)
         run_frame.pack(pady=5)
