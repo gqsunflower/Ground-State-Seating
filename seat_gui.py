@@ -10,6 +10,10 @@ seat_optimizer.py の計算エンジンをそのまま使うGUI。
   用意され、ドラッグして自由に配置できる(□同士の距離がそのまま座席間距離になる)
 - モード(net / split / lexicographic)を選んで「最適化を実行」を押すと、
   テキストと座席配置図(結果)の両方で表示される
+- 「保存」「読込」ボタンで、メンバー・好き嫌いスコア・座席配置・モードを
+  JSONファイルに保存/復元できる(次回起動時に続きから再開できる)。
+  保存先はデフォルトで saved_data/ フォルダ。実名・個人の好き嫌いを含む
+  データなので、このフォルダは .gitignore で除外しGitHubには上げない
 
 反発の重み・許容幅・対面回避設定などの細かいパラメータは、seat_optimizer.py
 冒頭の CONFIG セクションの値がそのまま使われる(変えたい場合はそちらを編集する)。
@@ -18,9 +22,11 @@ seat_optimizer.py の計算エンジンをそのまま使うGUI。
     python seat_gui.py
 """
 
+import json
 import math
+import os
 import tkinter as tk
-from tkinter import ttk, messagebox, scrolledtext
+from tkinter import ttk, messagebox, scrolledtext, filedialog
 
 import seat_optimizer as so
 
@@ -28,6 +34,10 @@ import seat_optimizer as so
 # REP_WEIGHT等が調整されているので、キャンバス上のpx座標をこの値で割ってから
 # 最適化エンジンに渡すことで、素のグリッド配置なら距離1に相当するよう揃える。
 SEAT_UNIT_PX = 90
+
+# 保存/読込のデフォルト保存先。メンバー名や好き嫌いスコアなど個人が特定できる
+# 情報を含みうるため、このフォルダは .gitignore で除外している(GitHubに上げない)。
+SAVE_DIR = "saved_data"
 
 
 class AffinityEditor(tk.Toplevel):
@@ -278,6 +288,11 @@ class SeatOptimizerGUI:
         self.seat_status = ttk.Label(setup_frame, text="未設定")
         self.seat_status.grid(row=1, column=1, sticky="w")
 
+        io_frame = ttk.LabelFrame(root, text="データの保存・読込(次回に続きから再開できます)")
+        io_frame.pack(fill="x", padx=10, pady=(0, 10))
+        ttk.Button(io_frame, text="保存...", command=self.save_data).pack(side="left", padx=10, pady=10)
+        ttk.Button(io_frame, text="読込...", command=self.load_data).pack(side="left")
+
         mode_frame = ttk.LabelFrame(root, text="計算モード")
         mode_frame.pack(fill="x", padx=10, pady=(0, 10))
         for i, (val, label) in enumerate([
@@ -315,6 +330,55 @@ class SeatOptimizerGUI:
             self.seat_status.config(text=f"{len(self.seat_coords)}席 設定済み")
         else:
             self.seat_status.config(text="未設定")
+
+    def save_data(self):
+        if not self.people:
+            messagebox.showerror("エラー", "保存するデータがありません。先に「① 好き嫌いを設定」を行ってください。")
+            return
+        os.makedirs(SAVE_DIR, exist_ok=True)
+        path = filedialog.asksaveasfilename(
+            title="保存先を選択", initialdir=SAVE_DIR, defaultextension=".json",
+            filetypes=[("JSONファイル", "*.json")])
+        if not path:
+            return
+        data = {
+            "people": self.people,
+            "affinity": self.affinity,
+            "seat_coords": {label: list(xy) for label, xy in self.seat_coords.items()},
+            "mode": self.mode.get(),
+        }
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+        except OSError as e:
+            messagebox.showerror("エラー", f"保存に失敗しました: {e}")
+            return
+        messagebox.showinfo("保存完了", f"保存しました:\n{path}")
+
+    def load_data(self):
+        os.makedirs(SAVE_DIR, exist_ok=True)
+        path = filedialog.askopenfilename(
+            title="読み込むファイルを選択", initialdir=SAVE_DIR,
+            filetypes=[("JSONファイル", "*.json")])
+        if not path:
+            return
+        try:
+            with open(path, encoding="utf-8") as f:
+                data = json.load(f)
+            people = list(data["people"])
+            affinity = dict(data["affinity"])
+            seat_coords = {label: tuple(xy) for label, xy in data.get("seat_coords", {}).items()}
+            mode = data.get("mode", so.MODE)
+        except (OSError, json.JSONDecodeError, KeyError, TypeError) as e:
+            messagebox.showerror("エラー", f"読み込みに失敗しました: {e}")
+            return
+
+        self.people = people
+        self.affinity = affinity
+        self.seat_coords = seat_coords
+        self.mode.set(mode)
+        self.refresh_status()
+        messagebox.showinfo("読込完了", f"読み込みました:\n{path}")
 
     def run(self):
         if len(self.people) < 2:

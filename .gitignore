@@ -3,6 +3,9 @@ data/private/
 *_private.*
 *.local.*
 
+# seat_gui.pyの「保存」ボタンで書き出す、メンバー名・好き嫌いスコアを含むデータ
+saved_data/
+
 # 認証情報
 .env
 *.pem
