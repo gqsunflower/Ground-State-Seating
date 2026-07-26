@@ -303,6 +303,15 @@ class SeatOptimizerGUI:
             ttk.Radiobutton(mode_frame, text=label, variable=self.mode, value=val).grid(
                 row=0, column=i, padx=10, pady=5, sticky="w")
 
+        mode_desc = (
+            "net：好き嫌いを単純に合算して計算する、最初に作られたシンプルなモデル\n"
+            "split：「好き」と「嫌い」を別の力として扱う。片思いの「嫌い」が相殺されて消えないよう改良されたモデル\n"
+            "lexicographic：「嫌い同士を離す」ことを最優先にしたうえで、その次に「好き同士を近づける」ことを狙うモデル\n"
+            "（3つとも独立した発想のモデルですが、多くの場合ほぼ同じ結論に収束します）"
+        )
+        ttk.Label(mode_frame, text=mode_desc, foreground="gray", justify="left",
+                  wraplength=700).grid(row=1, column=0, columnspan=3, padx=10, pady=(0, 10), sticky="w")
+
         ttk.Button(root, text="最適化を実行", command=self.run).pack(pady=5)
 
         output_frame = ttk.LabelFrame(root, text="結果(テキスト)")
