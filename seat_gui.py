@@ -63,8 +63,9 @@ class AffinityEditor(tk.Toplevel):
         name_entry.bind("<Return>", lambda e: self.add_member())
         ttk.Button(add_frame, text="＋ 追加", command=self.add_member).pack(side="left")
 
-        ttk.Label(self, text="行=自分の気持ち、列=相手。例：Aの行のB列＝AがBをどう思うか(-5〜+5、0=どうでもいい)",
-                  foreground="gray").pack(padx=10, anchor="w")
+        ttk.Label(self, text="行=自分の気持ち、列=相手。例：Aの行のB列＝AがBをどう思うか\n"
+                             "+5に近いほど「好き」、-5に近いほど「嫌い」、0＝どちらでもない",
+                  foreground="gray", justify="left").pack(padx=10, anchor="w")
 
         container = ttk.Frame(self)
         container.pack(fill="both", expand=True, padx=10, pady=5)
