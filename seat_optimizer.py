@@ -364,8 +364,9 @@ def check_facing_violations(assign, facing_set, R, threshold):
     return violations
 
 
-def print_seating_chart(layout, assign):
+def format_seating_chart(layout, assign):
     seat_to_person = {v: k for k, v in assign.items()}
+    lines = []
     for row in layout:
         cells = []
         for label in row:
@@ -374,7 +375,56 @@ def print_seating_chart(layout, assign):
             else:
                 p = seat_to_person.get(label, '?')
                 cells.append(f'{label}:{p}')
-        print('  '.join(cells))
+        lines.append('  '.join(cells))
+    return '\n'.join(lines)
+
+
+def solve_and_format(people, affinity, layout, mode, params, exact_threshold=9,
+                      sa_restarts=None, sa_iters=None, facing_pairs=None):
+    """
+    データ一式(人・好き嫌い・座席レイアウト)を受け取り、最適化を実行して
+    結果レポート文字列を返す。CLI(main)とGUI(seat_gui.py)の両方から共通で使う。
+    """
+    coords, dist = build_seat_distances(layout)
+    seats = list(coords.keys())
+    if len(seats) != len(people):
+        raise ValueError(f"人数({len(people)})と使用可能な座席数({len(seats)})が一致していません。")
+
+    W, A, R = build_symmetric_weights(people, affinity)
+    facing_set = build_facing_set(facing_pairs or [])
+
+    t0 = time.time()
+    best_assign, score, is_exact = optimize(
+        people, seats, W, A, R, dist, mode, params,
+        exact_threshold=exact_threshold, sa_restarts=sa_restarts, sa_iters=sa_iters,
+        facing_set=facing_set)
+    elapsed = time.time() - t0
+
+    lines = [
+        f"人数: {len(people)}人 / 座席数: {len(seats)}",
+        f"モード: {mode}  {'(厳密解・総当たり)' if is_exact else '(近似解・焼きなまし法)'}",
+        f"スコア: {score}",
+        f"計算時間: {elapsed:.2f}秒",
+        "",
+        "--- 最適配置 ---",
+    ]
+    for p in people:
+        lines.append(f"  {p} → {best_assign[p]}")
+    lines.append("")
+    lines.append("--- 座席配置図 ---")
+    lines.append(format_seating_chart(layout, best_assign))
+
+    if facing_set:
+        violations = check_facing_violations(best_assign, facing_set, R, params.get('face_threshold', -5))
+        lines.append("")
+        if violations:
+            lines.append(f"⚠ 対面回避の制約({params.get('face_mode', 'hard')})が破られています（他に解がなかった可能性）:")
+            for p1, p2, s1, s2, r in violations:
+                lines.append(f"   {p1}({s1}) ⇔ {p2}({s2})  斥力R={r}")
+        else:
+            lines.append("対面回避の制約: 違反なし")
+
+    return '\n'.join(lines)
 
 
 def main():
@@ -384,47 +434,15 @@ def main():
     else:
         people, affinity, layout = PEOPLE, AFFINITY, SEAT_LAYOUT
 
-    coords, dist = build_seat_distances(layout)
-    seats = list(coords.keys())
-    if len(seats) != len(people):
-        raise ValueError(f"人数({len(people)})と使用可能な座席数({len(seats)})が一致していません。")
-
-    W, A, R = build_symmetric_weights(people, affinity)
-    facing_set = build_facing_set(FACING_PAIRS)
-
     params = dict(power=NET_POWER, att_power=ATT_POWER, rep_power=REP_POWER,
                   rep_weight=REP_WEIGHT, buffer_pct=BUFFER_PCT,
                   face_threshold=FACE_TO_FACE_REP_THRESHOLD, face_mode=FACE_TO_FACE_MODE,
                   face_soft_penalty=FACE_TO_FACE_SOFT_PENALTY)
 
-    t0 = time.time()
-    best_assign, score, is_exact = optimize(
-        people, seats, W, A, R, dist, MODE, params,
-        exact_threshold=EXACT_THRESHOLD, sa_restarts=SA_RESTARTS, sa_iters=SA_ITERS_PER_RESTART,
-        facing_set=facing_set)
-    elapsed = time.time() - t0
-
-    print(f"人数: {len(people)}人 / 座席数: {len(seats)}")
-    print(f"モード: {MODE}  {'(厳密解・総当たり)' if is_exact else '(近似解・焼きなまし法)'}")
-    print(f"スコア: {score}")
-    print(f"計算時間: {elapsed:.2f}秒")
-    print()
-    print("--- 最適配置 ---")
-    for p in people:
-        print(f"  {p} → {best_assign[p]}")
-    print()
-    print("--- 座席配置図 ---")
-    print_seating_chart(layout, best_assign)
-
-    if facing_set:
-        violations = check_facing_violations(best_assign, facing_set, R, FACE_TO_FACE_REP_THRESHOLD)
-        print()
-        if violations:
-            print(f"⚠ 対面回避の制約({FACE_TO_FACE_MODE})が破られています（他に解がなかった可能性）:")
-            for p1, p2, s1, s2, r in violations:
-                print(f"   {p1}({s1}) ⇔ {p2}({s2})  斥力R={r}")
-        else:
-            print("対面回避の制約: 違反なし")
+    report = solve_and_format(people, affinity, layout, MODE, params,
+                               exact_threshold=EXACT_THRESHOLD, sa_restarts=SA_RESTARTS,
+                               sa_iters=SA_ITERS_PER_RESTART, facing_pairs=FACING_PAIRS)
+    print(report)
 
 
 if __name__ == '__main__':
