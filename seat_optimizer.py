@@ -119,6 +119,15 @@ def load_seat_layout_csv(path):
 # コアロジック
 # =====================================================================
 
+def distances_from_coords(coords):
+    """座席名 -> (x, y) の辞書から、座席間のユークリッド距離の辞書を作る。"""
+    dist = {s: {} for s in coords}
+    for s1, (x1, y1) in coords.items():
+        for s2, (x2, y2) in coords.items():
+            dist[s1][s2] = math.hypot(x1 - x2, y1 - y2)
+    return dist
+
+
 def build_seat_distances(layout):
     coords = {}
     for y, row in enumerate(layout):
@@ -127,11 +136,7 @@ def build_seat_distances(layout):
                 if label in coords:
                     raise ValueError(f"座席名が重複しています: {label}")
                 coords[label] = (x, y)
-    dist = {s: {} for s in coords}
-    for s1, (x1, y1) in coords.items():
-        for s2, (x2, y2) in coords.items():
-            dist[s1][s2] = math.hypot(x1 - x2, y1 - y2)
-    return coords, dist
+    return coords, distances_from_coords(coords)
 
 
 def build_symmetric_weights(people, affinity):
@@ -425,6 +430,53 @@ def solve_and_format(people, affinity, layout, mode, params, exact_threshold=9,
             lines.append("対面回避の制約: 違反なし")
 
     return '\n'.join(lines)
+
+
+def solve_and_format_coords(people, affinity, seat_coords, mode, params, exact_threshold=9,
+                             sa_restarts=None, sa_iters=None, facing_pairs=None):
+    """
+    座席の位置を「座席名 -> (x, y)」の辞書で直接指定するバージョン。
+    グリッド(layout)を前提にしない点だけが solve_and_format と異なる
+    (GUIのドラッグ配置エディタ seat_gui.py から使う)。
+    戻り値: (レポート文字列, 最適配置dict{person: seat})
+    """
+    seats = list(seat_coords.keys())
+    if len(seats) != len(people):
+        raise ValueError(f"人数({len(people)})と座席数({len(seats)})が一致していません。")
+
+    dist = distances_from_coords(seat_coords)
+    W, A, R = build_symmetric_weights(people, affinity)
+    facing_set = build_facing_set(facing_pairs or [])
+
+    t0 = time.time()
+    best_assign, score, is_exact = optimize(
+        people, seats, W, A, R, dist, mode, params,
+        exact_threshold=exact_threshold, sa_restarts=sa_restarts, sa_iters=sa_iters,
+        facing_set=facing_set)
+    elapsed = time.time() - t0
+
+    lines = [
+        f"人数: {len(people)}人 / 座席数: {len(seats)}",
+        f"モード: {mode}  {'(厳密解・総当たり)' if is_exact else '(近似解・焼きなまし法)'}",
+        f"スコア: {score}",
+        f"計算時間: {elapsed:.2f}秒",
+        "",
+        "--- 最適配置 ---",
+    ]
+    for p in people:
+        lines.append(f"  {p} → {best_assign[p]}")
+
+    if facing_set:
+        violations = check_facing_violations(best_assign, facing_set, R, params.get('face_threshold', -5))
+        lines.append("")
+        if violations:
+            lines.append(f"⚠ 対面回避の制約({params.get('face_mode', 'hard')})が破られています（他に解がなかった可能性）:")
+            for p1, p2, s1, s2, r in violations:
+                lines.append(f"   {p1}({s1}) ⇔ {p2}({s2})  斥力R={r}")
+        else:
+            lines.append("対面回避の制約: 違反なし")
+
+    return '\n'.join(lines), best_assign
 
 
 def main():
