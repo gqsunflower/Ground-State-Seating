@@ -4,7 +4,7 @@ seat_gui.py
 ===========
 seat_optimizer.py の計算エンジンをそのまま使うGUI。
 
-- 「① 好き嫌いを設定」ボタン → 別ウィンドウでメンバーの追加(＋)・削除(－)、
+- 「① メンバーの登録とその相性を設定」ボタン → 別ウィンドウでメンバーの追加(＋)・削除(－)、
   好き嫌いスコアの表(行=自分、列=相手)を編集できる
 - 「② 座席を設定」ボタン → 別ウィンドウで、メンバー数と同じ数の□(座席)が
   用意され、ドラッグして自由に配置できる(□同士の距離がそのまま座席間距離になる)
@@ -184,7 +184,7 @@ class SeatEditor(tk.Toplevel):
 
         n = len(app.people)
         if n < 1:
-            messagebox.showerror("エラー", "先に「① 好き嫌いを設定」でメンバーを登録してください。", parent=self)
+            messagebox.showerror("エラー", "先に「① メンバーの登録とその相性を設定」でメンバーを登録してください。", parent=self)
             self.destroy()
             return
 
@@ -278,7 +278,7 @@ class SeatOptimizerGUI:
         setup_frame = ttk.LabelFrame(root, text="設定")
         setup_frame.pack(fill="x", padx=10, pady=10)
 
-        ttk.Button(setup_frame, text="① 好き嫌いを設定...", command=self.open_affinity_editor).grid(
+        ttk.Button(setup_frame, text="① メンバーの登録とその相性を設定...", command=self.open_affinity_editor).grid(
             row=0, column=0, padx=10, pady=10, sticky="w")
         self.affinity_status = ttk.Label(setup_frame, text="未設定(0人)")
         self.affinity_status.grid(row=0, column=1, sticky="w")
@@ -342,7 +342,7 @@ class SeatOptimizerGUI:
 
     def save_data(self):
         if not self.people:
-            messagebox.showerror("エラー", "保存するデータがありません。先に「① 好き嫌いを設定」を行ってください。")
+            messagebox.showerror("エラー", "保存するデータがありません。先に「① メンバーの登録とその相性を設定」を行ってください。")
             return
         os.makedirs(SAVE_DIR, exist_ok=True)
         path = filedialog.asksaveasfilename(
@@ -391,7 +391,7 @@ class SeatOptimizerGUI:
 
     def run(self):
         if len(self.people) < 2:
-            messagebox.showerror("エラー", "先に「① 好き嫌いを設定」でメンバーを2人以上登録してください。")
+            messagebox.showerror("エラー", "先に「① メンバーの登録とその相性を設定」でメンバーを2人以上登録してください。")
             return
         if len(self.seat_coords) != len(self.people):
             messagebox.showerror(
