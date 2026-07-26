@@ -369,6 +369,14 @@ def check_facing_violations(assign, facing_set, R, threshold):
     return violations
 
 
+def format_score(score):
+    """スコアを表示用に整形する(小数点1桁)。lexicographicモードはタプル(反発コスト, 引力スコア)なのでラベルを付ける。"""
+    if isinstance(score, tuple):
+        rep, att = score
+        return f"反発コスト {rep:.1f} / 引力スコア {att:.1f}"
+    return f"{score:.1f}"
+
+
 def format_seating_chart(layout, assign):
     seat_to_person = {v: k for k, v in assign.items()}
     lines = []
@@ -408,7 +416,7 @@ def solve_and_format(people, affinity, layout, mode, params, exact_threshold=9,
     lines = [
         f"人数: {len(people)}人 / 座席数: {len(seats)}",
         f"モード: {mode}  {'(厳密解・総当たり)' if is_exact else '(近似解・焼きなまし法)'}",
-        f"スコア: {score}",
+        f"スコア: {format_score(score)}",
         f"計算時間: {elapsed:.2f}秒",
         "",
         "--- 最適配置 ---",
@@ -458,7 +466,7 @@ def solve_and_format_coords(people, affinity, seat_coords, mode, params, exact_t
     lines = [
         f"人数: {len(people)}人 / 座席数: {len(seats)}",
         f"モード: {mode}  {'(厳密解・総当たり)' if is_exact else '(近似解・焼きなまし法)'}",
-        f"スコア: {score}",
+        f"スコア: {format_score(score)}",
         f"計算時間: {elapsed:.2f}秒",
         "",
         "--- 最適配置 ---",
