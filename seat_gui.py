@@ -102,8 +102,8 @@ class AffinityEditor(tk.Toplevel):
         self.people.append(name)
         self.affinity[name] = {}
         for p in self.people:
-            self.affinity[name].setdefault(p, 0)
-            self.affinity[p].setdefault(name, 0)
+            self.affinity[name].setdefault(p, 0.0)
+            self.affinity[p].setdefault(name, 0.0)
         self.new_name_var.set("")
         self.rebuild_matrix()
 
@@ -138,7 +138,7 @@ class AffinityEditor(tk.Toplevel):
                     ttk.Label(self.matrix_frame, text="―", width=8, anchor="center",
                               borderwidth=1, relief="solid").grid(row=i + 1, column=j + 1, sticky="nsew")
                 else:
-                    var = tk.StringVar(value=str(self.affinity[pi].get(pj, 0)))
+                    var = tk.StringVar(value=str(self.affinity[pi].get(pj, 0.0)))
                     entry = ttk.Entry(self.matrix_frame, textvariable=var, width=8, justify="center")
                     entry.grid(row=i + 1, column=j + 1, sticky="nsew")
                     self.entries[(pi, pj)] = var
