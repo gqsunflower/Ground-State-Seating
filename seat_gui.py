@@ -308,12 +308,9 @@ class SeatOptimizerGUI:
         ttk.Button(io_frame, text="保存...", command=self.save_data).pack(side="left", padx=10, pady=10)
         ttk.Button(io_frame, text="読込...", command=self.load_data).pack(side="left")
 
-        mode_row = ttk.Frame(root)
-        mode_row.pack(fill="x", padx=10, pady=(0, 10))
-        mode_row.columnconfigure(1, weight=1)
-
-        mode_frame = ttk.LabelFrame(mode_row, text="計算モード")
-        mode_frame.grid(row=0, column=0, sticky="nw")
+        mode_frame = ttk.LabelFrame(
+            root, text="計算モード （3つとも独立した発想のモデルですが、多くの場合ほぼ同じ結論に収束します）")
+        mode_frame.pack(fill="x", padx=10, pady=(0, 10))
 
         MODE_INFO = [
             ('net', 'net（単純合算）',
@@ -338,9 +335,6 @@ class SeatOptimizerGUI:
             # 名前・説明のクリックでもトグルを選択できるようにする
             for widget in (name_label, desc_label):
                 widget.bind("<Button-1>", lambda e, v=val: self.mode.set(v))
-
-        ttk.Label(mode_row, text="（3つとも独立した発想のモデルですが、\n多くの場合ほぼ同じ結論に収束します）",
-                  foreground="gray", justify="left").grid(row=0, column=1, padx=(10, 0), sticky="nw")
 
         run_frame = ttk.Frame(root)
         run_frame.pack(pady=5)
