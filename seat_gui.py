@@ -179,7 +179,7 @@ class SeatEditor(tk.Toplevel):
             return
 
         self.geometry(f"{self.CANVAS_W + 40}x{self.CANVAS_H + 130}")
-        self.labels = [f"せき{i + 1}" for i in range(n)]
+        self.labels = [f"席{i + 1}" for i in range(n)]
 
         # 既に同じ人数分の座席配置があれば引き継ぐ。人数が変わっていれば初期グリッドから作り直す
         if len(app.seat_coords) == n:
@@ -210,7 +210,7 @@ class SeatEditor(tk.Toplevel):
         coords = {}
         for i in range(n):
             row, col = divmod(i, cols)
-            coords[f"せき{i + 1}"] = (80 + col * SEAT_UNIT_PX, 80 + row * SEAT_UNIT_PX)
+            coords[f"席{i + 1}"] = (80 + col * SEAT_UNIT_PX, 80 + row * SEAT_UNIT_PX)
         return coords
 
     def reset_grid(self):
